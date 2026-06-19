@@ -247,6 +247,52 @@ function connectToOBS(targetId) {
   setConn('connecting');
   if(peer) peer.destroy();
   
+  // ID temporário aleatório do celular
+  peer = new Peer('CELL-' + Math.floor(10000 + Math.random() * 90000), {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  });
+
+  peer.on('open', () => {
+    console.log("Conectando dados e vídeo...");
+    
+    // 1. CONEXÃO DE DADOS (Doca do OBS - Tally e Intercom)
+    dataConn = peer.connect(targetId + '-CONTROL');
+    
+    dataConn.on('open', () => {
+      setConn('connected');
+      console.log("Canal de comandos com a doca sincronizado!");
+    });
+
+    dataConn.on('data', (data) => {
+      if (data.type === 'command') receiveCommand(data.msg);
+      if (data.type === 'tally') setTally(data.state);
+    });
+
+    // 2. CONEXÃO DE VÍDEO (Fonte de Navegador do OBS)
+    if (currentStream) {
+      setTimeout(() => {
+        mediaCall = peer.call(targetId, currentStream);
+        console.log("Sinal de vídeo enviado para a fonte!");
+      }, 400);
+    }
+
+    dataConn.on('close', () => { setConn('error'); retryConnection(targetId); });
+    dataConn.on('error', () => { setConn('error'); retryConnection(targetId); });
+  });
+
+  peer.on('error', (err) => {
+    setConn('error');
+    retryConnection(targetId);
+  });
+}
+  setConn('connecting');
+  if(peer) peer.destroy();
+  
   // ID exclusivo temporário do celular para autenticação limpa na rede global PeerJS
   peer = new Peer('CELL-' + Math.floor(10000 + Math.random() * 90000), {
     config: {
