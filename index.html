@@ -21,7 +21,6 @@
   .setup-logo { font-size:10px; font-weight:700; letter-spacing:0.3em; color:rgba(255,255,255,0.18); text-transform:uppercase; margin-bottom:48px; }
   #deviceNameDisplay { font-size:28px; font-weight:600; color:#fff; text-align:center; margin-bottom:8px; cursor:pointer; }
   .setup-subtitle { font-size:14px; color:rgba(255,255,255,0.3); margin-bottom:44px; text-align:center; }
-  .server-toggle { font-size:12px; color:rgba(255,255,255,0.22); cursor:pointer; margin-bottom:12px; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,0.12); }
   #serverWrap { display:block; width:100%; max-width:300px; margin-bottom:20px; }
   .setup-server-input { background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; font-size:14px; padding:12px 16px; outline:none; width:100%; text-align:center; font-family:'SF Mono','Courier New',monospace; -webkit-appearance:none; }
   .start-btn { width:100%; max-width:300px; padding:18px; border-radius:16px; border:none; background:#fff; color:#000; font-size:17px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s,transform 0.1s; }
@@ -181,9 +180,9 @@ nameEl.addEventListener('click', () => {
 });
 
 // ── STATE ──
-let peer = null;          // Instância do PeerJS
-let dataConn = null;      // Canal de texto e comandos (DataChannel)
-let mediaCall = null;     // Conexão do feed de vídeo
+let peer = null;          
+let dataConn = null;      
+let mediaCall = null;     
 let currentTally = 'none';
 let pendingCmd = null;
 let currentStream = null;
@@ -232,7 +231,6 @@ async function startCamera(deviceId = null) {
   await loadCameras();
   keepAwake();
 
-  // Executa o pareamento com a mesa do OBS usando PeerJS
   const targetMesaId = document.getElementById('serverInput').value.trim();
   if (targetMesaId) {
     connectToOBS(targetMesaId);
@@ -242,16 +240,15 @@ async function startCamera(deviceId = null) {
   }
 }
 
-// ── CONEXÃO DIRETA COM O OBS (PEERJS COM SERVIDORES STUN GOOGLE) ──
+// ── CONEXÃO DIRETA (PEERJS COM SERVIDORES STUN DO GOOGLE) ──
 function connectToOBS(targetId) {
   setConn('connecting');
   
   if(peer) peer.destroy();
   
-  // Limpa o nome do celular removendo espaços para gerar uma ID válida de conexão
   const cleanName = deviceName.replace(/[^a-zA-Z0-9]/g, "-");
   
-  // NOVA CONFIGURAÇÃO INTEGRADA COM SERVIDORES STUN DO GOOGLE
+  // Sincronizado para usar os mesmos servidores estáveis globais do Google
   peer = new Peer('CAM-' + cleanName + '-' + Math.floor(100 + Math.random() * 900), {
     config: {
       iceServers: [
@@ -263,21 +260,18 @@ function connectToOBS(targetId) {
   });
 
   peer.on('open', () => {
-    // 1. Cria a conexão de texto para receber Tally e Ordens do Diretor
     dataConn = peer.connect(targetId);
     
     dataConn.on('open', () => {
       setConn('connected');
       console.log("Canal de dados aberto com o OBS.");
       
-      // 2. Dispara a chamada de streaming de vídeo para a mesa do OBS
       if (currentStream) {
         mediaCall = peer.call(targetId, currentStream);
       }
     });
 
     dataConn.on('data', (data) => {
-      // Processa os sinais de comando e tally vindos do painel do OBS
       if (data.type === 'command') receiveCommand(data.msg);
       if (data.type === 'tally') setTally(data.state);
     });
@@ -289,7 +283,7 @@ function connectToOBS(targetId) {
   });
 
   peer.on('error', (err) => {
-    console.error("Erro na infraestrutura PeerJS do telemóvel:", err);
+    console.error("Erro no PeerJS do celular:", err);
     setConn('error');
     retryConnection(targetId);
   });
@@ -341,7 +335,6 @@ function updateZoomLabel() {
   document.getElementById('zoomLabel').textContent = zoomLevel.toFixed(1).replace('.0','') + '×';
 }
 
-// Pinça para zoom
 let pinchStart = null;
 let pinchZoomStart = 1;
 document.addEventListener('touchstart', e => {
@@ -425,7 +418,7 @@ function toggleLensMenu() {
 document.addEventListener('touchstart', e => {
   if (lensMenuOpen && !e.target.closest('#lensMenu') && !e.target.closest('[title="Trocar câmera"]')) {
     lensMenuOpen = false;
-    document.getElementById('lensMenu').classList.remove('remove');
+    document.getElementById('lensMenu').classList.remove('show');
   }
 }, { passive: true });
 
@@ -439,37 +432,46 @@ function resetHideTimer() {
 }
 document.addEventListener('touchstart', resetHideTimer, { passive: true });
 
-// ── TALLY ──
+// ── TALLY INTELIGENTE COM LIMPEZA DE COMANDO ──
 function setTally(state) {
   const prev = currentTally;
   currentTally = state;
+  
   document.getElementById('tallyBorder').className = state;
   document.getElementById('tallyPill').className   = state;
   document.getElementById('tallyLabel').textContent = state==='program'?'AO VIVO':state==='preview'?'PRÉVIA':'OFF';
-  if (state === 'program') hideCommand();
-  if (prev === 'program' && state !== 'program' && pendingCmd) showCommand(pendingCmd);
+  
+  // REGRA: Se a câmera estava no ar (program) e SAIU (foi para preview ou none), apaga a mensagem
+  if (prev === 'program' && state !== 'program') {
+    pendingCmd = null; 
+    hideCommand();     
+  }
 }
 
-// ── COMANDO ──
+// ── COMANDO INTERCOM ──
 const cmdIcons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','zoom in':'🔍','afasta':'🔭','zoom out':'🔭','plano':'📐','close':'👤','stand by':'⏳','standby':'⏳','atenção':'⚠️','move':'↔️','pan':'↔️','tilt':'↕️','foco':'🎯','focus':'🎯' };
 function guessIcon(msg) { const l=msg.toLowerCase(); for(const[k,v] of Object.entries(cmdIcons)) if(l.includes(k)) return v; return '📢'; }
 
 function receiveCommand(msg) {
-  pendingCmd = msg;
-  if (currentTally !== 'program') showCommand(msg);
+  // REGRA: O telemóvel ignora a mensagem se NÃO estiver na PRÉVIA (evita poluir fora de hora)
+  if (currentTally === 'preview') {
+    pendingCmd = msg;
+    showCommand(msg);
+  }
 }
+
 function showCommand(msg) {
   document.getElementById('cmdText').textContent = msg;
   document.getElementById('cmdIcon').textContent = guessIcon(msg);
-  document.getElementById('cmdOverlay').classList.add('show');
+  document.getElementById('cmdOverlay').className = 'show';
   flashScreen(); vibrate();
 }
-function hideCommand() { document.getElementById('cmdOverlay').classList.remove('show'); }
+function hideCommand() { document.getElementById('cmdOverlay').className = ''; }
 
 function flashScreen() {
   const f = document.getElementById('flashOverlay');
-  f.classList.add('flash');
-  setTimeout(() => f.classList.remove('flash'), 110);
+  f.className = 'flash';
+  setTimeout(() => f.className = '', 110);
 }
 function vibrate() { try { navigator.vibrate?.([35,25,35]); } catch(e) {} }
 
