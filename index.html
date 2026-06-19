@@ -243,6 +243,44 @@ async function startCamera(deviceId = null) {
 // ── CONEXÃO DIRETA (PEERJS COM SERVIDORES STUN DO GOOGLE) ──
 function connectToOBS(targetId) {
   setConn('connecting');
+  if(peer) peer.destroy();
+  
+  // Usamos um ID fixo baseado no nome da câmera para o OBS saber quem é quem
+  const cleanName = deviceName.replace(/[^a-zA-Z0-9]/g, "-");
+  const meuPeerId = 'CAM-' + cleanName;
+  
+  peer = new Peer(meuPeerId, {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  });
+
+  peer.on('open', () => {
+    // IMPORTANTE: Agora o celular apenas fica ESPERANDO o OBS conectar nele.
+    setConn('connected'); 
+    console.log("Aguardando conexão automatizada do OBS...");
+  });
+
+  peer.on('connection', (conn) => {
+    dataConn = conn;
+    
+    dataConn.on('data', (data) => {
+      if (data.type === 'command') receiveCommand(data.msg); //
+      if (data.type === 'tally') setTally(data.state); //
+    });
+    
+    dataConn.on('close', () => { setConn('error'); });
+  });
+}
+
+function receiveCommand(msg) {
+  pendingCmd = msg; //
+  showCommand(msg); //
+}
+  setConn('connecting');
   
   if(peer) peer.destroy();
   
@@ -287,7 +325,6 @@ function connectToOBS(targetId) {
     setConn('error');
     retryConnection(targetId);
   });
-}
 
 function retryConnection(targetId) {
   setTimeout(() => {
@@ -453,12 +490,16 @@ const cmdIcons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','zoom in':'�
 function guessIcon(msg) { const l=msg.toLowerCase(); for(const[k,v] of Object.entries(cmdIcons)) if(l.includes(k)) return v; return '📢'; }
 
 function receiveCommand(msg) {
+  // Removida a trava para que o celular receba a mensagem em qualquer estado
+  pendingCmd = msg;
+  showCommand(msg);
+}
   // REGRA: O telemóvel ignora a mensagem se NÃO estiver na PRÉVIA (evita poluir fora de hora)
   if (currentTally === 'preview') {
     pendingCmd = msg;
     showCommand(msg);
   }
-}
+
 
 function showCommand(msg) {
   document.getElementById('cmdText').textContent = msg;
