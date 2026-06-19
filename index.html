@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Filmador</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Helvetica Neue',Arial,sans-serif; -webkit-user-select:none; user-select:none; }
@@ -21,8 +22,7 @@
   #deviceNameDisplay { font-size:28px; font-weight:600; color:#fff; text-align:center; margin-bottom:8px; cursor:pointer; }
   .setup-subtitle { font-size:14px; color:rgba(255,255,255,0.3); margin-bottom:44px; text-align:center; }
   .server-toggle { font-size:12px; color:rgba(255,255,255,0.22); cursor:pointer; margin-bottom:12px; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,0.12); }
-  #serverWrap { display:none; width:100%; max-width:300px; margin-bottom:20px; }
-  #serverWrap.open { display:block; }
+  #serverWrap { display:block; width:100%; max-width:300px; margin-bottom:20px; }
   .setup-server-input { background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; font-size:14px; padding:12px 16px; outline:none; width:100%; text-align:center; font-family:'SF Mono','Courier New',monospace; -webkit-appearance:none; }
   .start-btn { width:100%; max-width:300px; padding:18px; border-radius:16px; border:none; background:#fff; color:#000; font-size:17px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s,transform 0.1s; }
   .start-btn:active { opacity:0.75; transform:scale(0.98); }
@@ -39,7 +39,6 @@
 
   /* ── HUD ── */
   #hud { position:absolute; inset:0; pointer-events:none; z-index:20; }
-
   #camNameBadge { position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); left:16px; font-size:11px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.45); text-transform:uppercase; max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   #tallyPill { position:absolute; top:calc(env(safe-area-inset-top,0px) + 10px); right:14px; display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:100px; background:rgba(0,0,0,0.4); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:all 0.3s; }
@@ -118,9 +117,8 @@
   <div class="setup-logo">CamCmd · Filmador</div>
   <div id="deviceNameDisplay">Carregando…</div>
   <div class="setup-subtitle">Este nome aparecerá no painel do operador</div>
-  <div class="server-toggle" onclick="toggleServer()">▸ Configurar servidor</div>
   <div id="serverWrap">
-    <input class="setup-server-input" id="serverInput" type="text" value="ws://192.168.1.100:8080" placeholder="ws://IP:8080" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input class="setup-server-input" id="serverInput" type="text" value="" placeholder="ID DA MESA (Ex: MESA-1234)" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
   <button class="start-btn" onclick="startCamera()">Iniciar Câmera</button>
 </div>
@@ -182,11 +180,10 @@ nameEl.addEventListener('click', () => {
   if (n && n.trim()) { deviceName = n.trim(); nameEl.textContent = deviceName; }
 });
 
-function toggleServer() { document.getElementById('serverWrap').classList.toggle('open'); }
-
 // ── STATE ──
-let ws = null;
-let peerConnection = null; // Instância do WebRTC
+let peer = null;          // Instância do PeerJS
+let dataConn = null;      // Canal de texto e comandos (DataChannel)
+let mediaCall = null;     // Conexão do feed de vídeo
 let currentTally = 'none';
 let pendingCmd = null;
 let currentStream = null;
@@ -235,107 +232,67 @@ async function startCamera(deviceId = null) {
   await loadCameras();
   keepAwake();
 
-  const serverUrl = document.getElementById('serverInput').value.trim();
-  
-  // Conecta ou garante a conexão do WebSocket primeiro
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    connectWS(serverUrl);
+  // Executa o pareamento com a mesa do OBS usando PeerJS
+  const targetMesaId = document.getElementById('serverInput').value.trim();
+  if (targetMesaId) {
+    connectToOBS(targetMesaId);
   } else {
-    // Se o WebSocket já estava aberto (ex: mudou de lente), inicia o WebRTC direto
-    startWebRTCStream(stream);
-  }
-
-  if (serverUrl.includes('192.168.1.100')) setTimeout(startDemo, 800);
-}
-
-// ── WEBRTC (TRANSMISSÃO DE VÍDEO) ──
-async function startWebRTCStream(stream) {
-  // Fecha conexão WebRTC anterior se houver
-  if (peerConnection) {
-    peerConnection.close();
-  }
-
-  // Servidor STUN público do Google para resolver caminhos de rede (NAT)
-  const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-  peerConnection = new RTCPeerConnection(configuration);
-
-  // Injeta a imagem da câmera na conexão de transmissão
-  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-  // Quando o dispositivo gera um candidato de rota local, envia para o operador
-  peerConnection.onicecandidate = event => {
-    if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'candidate',
-        target: 'obs_operator',
-        sender: deviceName,
-        candidate: event.candidate
-      }));
-    }
-  };
-
-  try {
-    // Cria a oferta SDP (parâmetros do vídeo)
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    // Envia a oferta para o operador via WebSocket
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'offer',
-        target: 'obs_operator',
-        sender: deviceName,
-        sdp: peerConnection.localDescription
-      }));
-    }
-  } catch (err) {
-    console.error("Erro ao criar oferta WebRTC:", err);
+    setConn('error');
+    alert('Por favor, digite o ID da mesa gerado na tela do OBS.');
   }
 }
 
-// ── WEBSOCKET ──
-function connectWS(url) {
+// ── CONEXÃO DIRETA COM O OBS (PEERJS) ──
+function connectToOBS(targetId) {
   setConn('connecting');
-  try { ws = new WebSocket(url); } catch(e) { retry(url); return; }
   
-  ws.onopen = () => {
-    setConn('connected');
-    ws.send(JSON.stringify({ type:'register', id:deviceName, name:deviceName }));
+  if(peer) peer.destroy();
+  
+  // Limpa o nome do celular removendo espaços para gerar uma ID válida de conexão
+  const cleanName = deviceName.replace(/[^a-zA-Z0-9]/g, "-");
+  peer = new Peer('CAM-' + cleanName + '-' + Math.floor(100 + Math.random() * 900));
+
+  peer.on('open', () => {
+    // 1. Cria a conexão de texto para receber Tally e Ordens do Diretor
+    dataConn = peer.connect(targetId);
     
-    // Assim que o WebSocket conecta com sucesso, engaja o fluxo do WebRTC
-    if (currentStream) {
-      startWebRTCStream(currentStream);
-    }
-  };
-  
-  ws.onmessage = async (evt) => {
-    try {
-      const data = JSON.parse(evt.data);
+    dataConn.on('open', () => {
+      setConn('connected');
+      console.log("Canal de dados aberto com o OBS.");
       
-      // Filtros existentes de Tally e Comando
-      if (data.type === 'command' && matchesMe(data.target)) receiveCommand(data.msg);
-      if (data.type === 'tally'   && matchesMe(data.target)) setTally(data.state);
-      
-      // NOVOS: Respostas WebRTC vindas do receptor/painel do OBS
-      if (data.type === 'answer' && matchesMe(data.target)) {
-        if (peerConnection) {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        }
+      // 2. Dispara a chamada de streaming de vídeo para a mesa do OBS
+      if (currentStream) {
+        mediaCall = peer.call(targetId, currentStream);
       }
-      if (data.type === 'candidate' && matchesMe(data.target)) {
-        if (peerConnection && data.candidate) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-      }
-    } catch(e) {
-      console.error("Erro ao processar mensagem WS:", e);
-    }
-  };
-  ws.onclose = () => { setConn('error'); retry(url); };
-  ws.onerror = () => { setConn('error'); };
+    });
+
+    dataConn.on('data', (data) => {
+      // Processa os sinais de comando e tally vindos do painel do OBS
+      if (data.type === 'command') receiveCommand(data.msg);
+      if (data.type === 'tally') setTally(data.state);
+    });
+
+    dataConn.on('close', () => { 
+      setConn('error'); 
+      retryConnection(targetId);
+    });
+  });
+
+  peer.on('error', (err) => {
+    console.error("Erro na infraestrutura PeerJS:", err);
+    setConn('error');
+    retryConnection(targetId);
+  });
 }
-function retry(url) { setTimeout(() => connectWS(url), 4000); }
-function matchesMe(t) { if(!t) return false; return t.toLowerCase()===deviceName.toLowerCase() || t==='all'; }
+
+function retryConnection(targetId) {
+  setTimeout(() => {
+    // Só tenta reconectar se a interface da câmera ainda estiver ativa
+    if (document.getElementById('camScreen').style.display === 'block') {
+      connectToOBS(targetId);
+    }
+  }, 4000);
+}
 
 // ── ZOOM ──
 async function setupZoom(track) {
@@ -512,15 +469,16 @@ function setConn(state) {
   const dot = document.getElementById('connDot');
   const lbl = document.getElementById('connLabel');
   if(state==='connected'){dot.className='conn-dot on';lbl.textContent='CONECTADO';}
-  else if(state==='error'){dot.className='conn-dot err';lbl.textContent='RECONECTANDO…';}
+  else if(state==='error'){dot.className='conn-dot err';lbl.textContent='DESCONECTADO';}
   else{dot.className='conn-dot';lbl.textContent='CONECTANDO…';}
 }
 
 // ── SAIR ──
 function exitCamera() {
   if (confirm('Sair da câmera?')) {
-    if (peerConnection) peerConnection.close();
-    if (ws) ws.close();
+    if (mediaCall) mediaCall.close();
+    if (dataConn) dataConn.close();
+    if (peer) peer.destroy();
     if (currentStream) currentStream.getTracks().forEach(t => t.stop());
     document.getElementById('camScreen').style.display = 'none';
     document.getElementById('setupScreen').style.display = 'flex';
@@ -532,24 +490,6 @@ function exitCamera() {
 async function keepAwake() {
   try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e) {}
   document.addEventListener('visibilitychange', async () => { if(document.visibilityState==='visible') keepAwake(); });
-}
-
-// ── DEMO ──
-function startDemo() {
-  setConn('connected');
-  document.getElementById('connLabel').textContent='MODO DEMO';
-  let s=0;
-  const steps=[
-    ()=>setTally('preview'),
-    ()=>receiveCommand('🔍 Aproxima no apresentador'),
-    ()=>receiveCommand('📐 Plano americano'),
-    ()=>setTally('program'),
-    ()=>setTally('preview'),
-    ()=>receiveCommand('✋ CORTA — ótimo!'),
-    ()=>setTally('none'),
-  ];
-  const run=()=>{ if(s<steps.length){steps[s++]();setTimeout(run,3500);} };
-  setTimeout(run,1500);
 }
 </script>
 </body>
