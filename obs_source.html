@@ -23,18 +23,32 @@ const peer = new Peer(camId, {
 });
 
 let cellDataConn = null;
+let conexaoDiretor = null;
+
+// Tenta linkar essa fonte com o painel do diretor para troca de dados
+peer.on('open', () => {
+  conectarAoDiretor();
+});
+
+function conectarAoDiretor() {
+  conexaoDiretor = peer.connect('CAM-DIRETOR-PAINEL');
+  conexaoDiretor.on('error', () => setTimeout(conectarAoDiretor, 5000)); // Reconecta se o painel abrir depois
+}
 
 peer.on('connection', (conn) => {
-  // Se quem estiver conectando for o Diretor, processa o comando de texto
-  if (conn.peer.startsWith('CAM-DIRETOR')) {
-    conn.on('data', (data) => {
-      if (data.type === 'command' && cellDataConn && cellDataConn.open) {
-        cellDataConn.send(data); // Repassa a mensagem direto para o celular conectado
-      }
+  // Ignora se for o painel tentando conectar por engano
+  if (conn.peer === 'CAM-DIRETOR-PAINEL') return;
+
+  cellDataConn = conn;
+  console.log('Celular linkado na fonte: ' + camId);
+
+  // Avisa o painel do diretor qual é o ID real deste celular na rede
+  if (conexaoDiretor && conexaoDiretor.open) {
+    conexaoDiretor.send({
+      type: 'registro_celular',
+      cam: camId,
+      celularPeerId: conn.peer
     });
-  } else {
-    // Caso contrário, é o celular da própria câmera se conectando
-    cellDataConn = conn;
   }
 });
 
@@ -45,7 +59,7 @@ peer.on('call', (call) => {
   });
 });
 
-// Injeção direta do Script Lua do OBS
+// Comando de Tally vindo do Script Lua
 window.atualizarTallyDoOBS = function(estado) {
   if (cellDataConn && cellDataConn.open) {
     cellDataConn.send({ type: 'tally', state: estado });
