@@ -293,8 +293,6 @@ async function startCamera(deviceId = null) {
   const serverUrl = document.getElementById('serverInput').value.trim();
   if (!ws || ws.readyState !== WebSocket.OPEN) connectWS(serverUrl);
 
-  // Auto-demo
-  if (serverUrl.includes('192.168.1.8')) setTimeout(startDemo, 800);
 }
 
 // ── ZOOM ──
