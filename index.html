@@ -118,7 +118,7 @@
   <div id="deviceNameDisplay">Carregando…</div>
   <div class="setup-subtitle">Este nome aparecerá no painel do operador</div>
   <div id="serverWrap">
-    <input class="setup-server-input" id="serverInput" type="text" value="" placeholder="ID DA MESA (Ex: MESA-1234)" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input class="setup-server-input" id="serverInput" type="text" value="" placeholder="ID DA MESA (Ex: CAM1)" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
   <button class="start-btn" onclick="startCamera()">Iniciar Câmera</button>
 </div>
@@ -242,7 +242,7 @@ async function startCamera(deviceId = null) {
   }
 }
 
-// ── CONEXÃO DIRETA COM O OBS (PEERJS) ──
+// ── CONEXÃO DIRETA COM O OBS (PEERJS COM SERVIDORES STUN GOOGLE) ──
 function connectToOBS(targetId) {
   setConn('connecting');
   
@@ -250,7 +250,17 @@ function connectToOBS(targetId) {
   
   // Limpa o nome do celular removendo espaços para gerar uma ID válida de conexão
   const cleanName = deviceName.replace(/[^a-zA-Z0-9]/g, "-");
-  peer = new Peer('CAM-' + cleanName + '-' + Math.floor(100 + Math.random() * 900));
+  
+  // NOVA CONFIGURAÇÃO INTEGRADA COM SERVIDORES STUN DO GOOGLE
+  peer = new Peer('CAM-' + cleanName + '-' + Math.floor(100 + Math.random() * 900), {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    }
+  });
 
   peer.on('open', () => {
     // 1. Cria a conexão de texto para receber Tally e Ordens do Diretor
@@ -279,7 +289,7 @@ function connectToOBS(targetId) {
   });
 
   peer.on('error', (err) => {
-    console.error("Erro na infraestrutura PeerJS:", err);
+    console.error("Erro na infraestrutura PeerJS do telemóvel:", err);
     setConn('error');
     retryConnection(targetId);
   });
@@ -287,7 +297,6 @@ function connectToOBS(targetId) {
 
 function retryConnection(targetId) {
   setTimeout(() => {
-    // Só tenta reconectar se a interface da câmera ainda estiver ativa
     if (document.getElementById('camScreen').style.display === 'block') {
       connectToOBS(targetId);
     }
@@ -416,7 +425,7 @@ function toggleLensMenu() {
 document.addEventListener('touchstart', e => {
   if (lensMenuOpen && !e.target.closest('#lensMenu') && !e.target.closest('[title="Trocar câmera"]')) {
     lensMenuOpen = false;
-    document.getElementById('lensMenu').classList.remove('show');
+    document.getElementById('lensMenu').classList.remove('remove');
   }
 }, { passive: true });
 
