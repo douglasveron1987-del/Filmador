@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel de Intercom CamCmd</title>
+<style>
+  body { background: #202026; color: #fff; font-family: Arial, sans-serif; padding: 10px; margin: 0; }
+  h3 { margin: 0 0 10px 0; color: #aaa; font-size: 11px; letter-spacing: 1px; text-align: center; }
+  .cmd-container { display: flex; flex-direction: column; gap: 8px; background: #16161a; padding: 10px; border-radius: 6px; }
+  select, input, button { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; font-size: 12px; outline: none; }
+  select { background: #2a2a35; font-weight: bold; }
+  button { background: #3b82f6; border: none; font-weight: bold; cursor: pointer; }
+  button:active { opacity: 0.8; }
+  .status-net { font-size: 10px; text-align: center; color: #666; margin-top: 5px; }
+</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<h3>CAMCMD // ENVIAR ORDEM INDIVIDUAL</h3>
+
+<div class="cmd-container">
+  <select id="targetCam">
+    <option value="CAM1">🎥 Câmera 01 (CAM1)</option>
+    <option value="CAM2">🎥 Câmera 02 (CAM2)</option>
+    <option value="CAM3">🎥 Câmera 03 (CAM3)</option>
+    <option value="CAM4">🎥 Câmera 04 (CAM4)</option>
+    <option value="CAM5">🎥 Câmera 05 (CAM5)</option>
+    <option value="CAM6">🎥 Câmera 06 (CAM6)</option>
+    <option value="CAM7">🎥 Câmera 07 (CAM7)</option>
+    <option value="CAM8">🎥 Câmera 08 (CAM8)</option>
+  </select>
+  
+  <input type="text" id="cmdInput" placeholder="Digite a instrução (ex: Fecha o plano)...">
+  <button onclick="enviarMensagemIntercom()">Enviar Comando</button>
+  <div id="netStatus" class="status-net">Iniciando Rede do Diretor...</div>
+</div>
+
+<script>
+// Cria um ID único para o painel do diretor na nuvem
+const peerDiretor = new Peer('CAM-DIRETOR-' + Math.floor(100 + Math.random() * 900), {
+  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+});
+
+peerDiretor.on('open', () => {
+  document.getElementById('netStatus').textContent = "Rede do Diretor: PRONTA";
+  document.getElementById('netStatus').style.color = "#22c55e";
+});
+
+function enviarMensagemIntercom() {
+  const target = document.getElementById('targetCam').value;
+  const msgText = document.getElementById('cmdInput').value.trim();
+  
+  if (!msgText) return;
+
+  // Cria uma conexão rápida direta com o celular alvo para disparar o comando
+  const connComando = peerDiretor.connect(target);
+  
+  connComando.on('open', () => {
+    connComando.send({ type: 'command', msg: msgText });
+    console.log("Comando enviado via rede para: " + target);
+    setTimeout(() => connComando.close(), 500); // Fecha após enviar para liberar o canal
+  });
+
+  document.getElementById('cmdInput').value = '';
+}
+</script>
+</body>
+</html>

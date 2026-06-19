@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Fonte Ativa CamCmd</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  video { width: 100%; height: 100%; object-fit: cover; background: transparent; }
+</style>
+</head>
+<body>
+
+<video id="remoteVideo" autoplay playsinline></video>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const camId = urlParams.get('cam') || 'CAM1'; 
+
+const peer = new Peer(camId, {
+  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+});
+
+let cellDataConn = null;
+
+peer.on('connection', (conn) => {
+  // Se quem estiver conectando for o Diretor, processa o comando de texto
+  if (conn.peer.startsWith('CAM-DIRETOR')) {
+    conn.on('data', (data) => {
+      if (data.type === 'command' && cellDataConn && cellDataConn.open) {
+        cellDataConn.send(data); // Repassa a mensagem direto para o celular conectado
+      }
+    });
+  } else {
+    // Caso contrário, é o celular da própria câmera se conectando
+    cellDataConn = conn;
+  }
+});
+
+peer.on('call', (call) => {
+  call.answer();
+  call.on('stream', (remoteStream) => {
+    document.getElementById('remoteVideo').srcObject = remoteStream;
+  });
+});
+
+// Injeção direta do Script Lua do OBS
+window.atualizarTallyDoOBS = function(estado) {
+  if (cellDataConn && cellDataConn.open) {
+    cellDataConn.send({ type: 'tally', state: estado });
+  }
+};
+</script>
+</body>
+</html>
