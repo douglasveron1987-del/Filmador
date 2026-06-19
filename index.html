@@ -7,7 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Filmador</title>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Helvetica Neue',Arial,sans-serif; -webkit-user-select:none; user-select:none; }
@@ -21,7 +20,9 @@
   .setup-logo { font-size:10px; font-weight:700; letter-spacing:0.3em; color:rgba(255,255,255,0.18); text-transform:uppercase; margin-bottom:48px; }
   #deviceNameDisplay { font-size:28px; font-weight:600; color:#fff; text-align:center; margin-bottom:8px; cursor:pointer; }
   .setup-subtitle { font-size:14px; color:rgba(255,255,255,0.3); margin-bottom:44px; text-align:center; }
-  #serverWrap { display:block; width:100%; max-width:300px; margin-bottom:20px; }
+  .server-toggle { font-size:12px; color:rgba(255,255,255,0.22); cursor:pointer; margin-bottom:12px; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,0.12); }
+  #serverWrap { display:none; width:100%; max-width:300px; margin-bottom:20px; }
+  #serverWrap.open { display:block; }
   .setup-server-input { background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; font-size:14px; padding:12px 16px; outline:none; width:100%; text-align:center; font-family:'SF Mono','Courier New',monospace; -webkit-appearance:none; }
   .start-btn { width:100%; max-width:300px; padding:18px; border-radius:16px; border:none; background:#fff; color:#000; font-size:17px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s,transform 0.1s; }
   .start-btn:active { opacity:0.75; transform:scale(0.98); }
@@ -38,6 +39,7 @@
 
   /* ── HUD ── */
   #hud { position:absolute; inset:0; pointer-events:none; z-index:20; }
+
   #camNameBadge { position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); left:16px; font-size:11px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.45); text-transform:uppercase; max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   #tallyPill { position:absolute; top:calc(env(safe-area-inset-top,0px) + 10px); right:14px; display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:100px; background:rgba(0,0,0,0.4); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:all 0.3s; }
@@ -49,40 +51,85 @@
   #tallyPill.preview #tallyLabel { color:#22c55e; }
   #tallyPill.program #tallyLabel { color:#e53935; }
 
-  /* ── CONTROLES DE CÂMERA ── */
+  /* ── CONTROLES DE CÂMERA — lado direito, discretos ── */
   #camControls {
-    position:absolute; right:14px; top:50%; transform:translateY(-50%);
-    display:flex; flex-direction:column; align-items:center; gap:10px;
-    pointer-events:auto; z-index:25; opacity:1; transition:opacity 0.4s;
+    position:absolute;
+    right:14px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    pointer-events:auto;
+    z-index:25;
+    opacity:1;
+    transition:opacity 0.4s;
   }
   #camControls.hidden { opacity:0; pointer-events:none; }
 
   .ctrl-btn {
-    width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,0.18);
-    background:rgba(0,0,0,0.42); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-    color:#fff; font-size:18px; display:flex; align-items:center; justify-content:center;
-    cursor:pointer; transition:background 0.15s, transform 0.1s; -webkit-user-select:none;
+    width:44px; height:44px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,0.18);
+    background:rgba(0,0,0,0.42);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    color:#fff;
+    font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:background 0.15s, transform 0.1s;
+    -webkit-user-select:none;
   }
   .ctrl-btn:active { background:rgba(255,255,255,0.2); transform:scale(0.93); }
 
+  /* Zoom label */
   #zoomLabel {
-    font-size:12px; font-weight:700; color:rgba(255,255,255,0.7); font-family:'SF Mono','Courier New',monospace;
-    background:rgba(0,0,0,0.38); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    padding:4px 8px; border-radius:6px; min-width:44px; text-align:center; letter-spacing:0.04em;
+    font-size:12px;
+    font-weight:700;
+    color:rgba(255,255,255,0.7);
+    font-family:'SF Mono','Courier New',monospace;
+    background:rgba(0,0,0,0.38);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    padding:4px 8px;
+    border-radius:6px;
+    min-width:44px;
+    text-align:center;
+    letter-spacing:0.04em;
   }
 
+  /* Seletor de lente (aparece ao tocar no botão câmera) */
   #lensMenu {
-    position:absolute; right:66px; top:50%; transform:translateY(-50%);
-    display:flex; flex-direction:column; gap:8px; z-index:26; opacity:0;
-    pointer-events:none; transition:opacity 0.2s;
+    position:absolute;
+    right:66px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    z-index:26;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.2s;
   }
   #lensMenu.show { opacity:1; pointer-events:auto; }
 
   .lens-btn {
-    padding:8px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.2);
-    background:rgba(0,0,0,0.6); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    color:#fff; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap;
-    transition:background 0.15s; text-align:center;
+    padding:8px 14px;
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,0.2);
+    background:rgba(0,0,0,0.6);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    color:#fff;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background 0.15s;
+    text-align:center;
   }
   .lens-btn:active { background:rgba(255,255,255,0.2); }
   .lens-btn.active { border-color:#22c55e; color:#22c55e; }
@@ -112,16 +159,19 @@
 </head>
 <body>
 
+<!-- SETUP -->
 <div id="setupScreen">
   <div class="setup-logo">CamCmd · Filmador</div>
   <div id="deviceNameDisplay">Carregando…</div>
   <div class="setup-subtitle">Este nome aparecerá no painel do operador</div>
+  <div class="server-toggle" onclick="toggleServer()">▸ Configurar servidor</div>
   <div id="serverWrap">
-    <input class="setup-server-input" id="serverInput" type="text" value="" placeholder="ID DA MESA (Ex: CAM1)" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input class="setup-server-input" id="serverInput" type="text" value="ws://192.168.1.100:8080" placeholder="ws://IP:8080" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
   <button class="start-btn" onclick="startCamera()">Iniciar Câmera</button>
 </div>
 
+<!-- CAM SCREEN -->
 <div id="camScreen">
   <video id="video" autoplay muted playsinline webkit-playsinline></video>
 
@@ -141,6 +191,7 @@
     <button id="exitBtn" onclick="exitCamera()">SAIR</button>
   </div>
 
+  <!-- CONTROLES LATERAIS -->
   <div id="camControls">
     <button class="ctrl-btn" id="zoomInBtn" onclick="adjustZoom(0.5)" title="Aproximar">＋</button>
     <div id="zoomLabel">1×</div>
@@ -148,8 +199,12 @@
     <button class="ctrl-btn" onclick="toggleLensMenu()" title="Trocar câmera">⇄</button>
   </div>
 
-  <div id="lensMenu"></div>
+  <!-- MENU DE LENTES -->
+  <div id="lensMenu">
+    <!-- Preenchido dinamicamente -->
+  </div>
 
+  <!-- COMANDO -->
   <div id="cmdOverlay">
     <div class="cmd-bubble">
       <div class="cmd-icon-wrap" id="cmdIcon">📢</div>
@@ -162,10 +217,27 @@
 </div>
 
 <script>
+// ── NOME DO DISPOSITIVO ──
+function getDeviceName() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  const android = ua.match(/Android[^;]*;\s*([^)]+)\)/);
+  if (android) return android[1].trim().split(' ').slice(0,3).join(' ');
+  return 'Câmera';
+}
+let deviceName = getDeviceName();
+const nameEl = document.getElementById('deviceNameDisplay');
+nameEl.textContent = deviceName;
+nameEl.addEventListener('click', () => {
+  const n = prompt('Nome desta câmera:', deviceName);
+  if (n && n.trim()) { deviceName = n.trim(); nameEl.textContent = deviceName; }
+});
+
+function toggleServer() { document.getElementById('serverWrap').classList.toggle('open'); }
+
 // ── STATE ──
-let peer = null;          
-let dataConn = null;      
-let mediaCall = null;     
+let ws = null;
 let currentTally = 'none';
 let pendingCmd = null;
 let currentStream = null;
@@ -176,268 +248,56 @@ let zoomMin = 1.0;
 let zoomMax = 5.0;
 let lensMenuOpen = false;
 
-// ── CAPTURAR E ADICIONAR NOME DO DISPOSITIVO ──
-function getDeviceName() {
-  const ua = navigator.userAgent;
-  if (/iPhone/.test(ua)) return 'iPhone';
-  if (/iPad/.test(ua)) return 'iPad';
-  const android = ua.match(/Android[^;]*;\s*([^)]+)\)/);
-  if (android) return android[1].trim().split(' ').slice(0,3).join(' ');
-  return 'Câmera';
-}
-
-let deviceName = getDeviceName();
-const nameEl = document.getElementById('deviceNameDisplay');
-nameEl.textContent = deviceName;
-
-nameEl.addEventListener('click', () => {
-  const n = prompt('Nome desta câmera:', deviceName);
-  if (n && n.trim()) { deviceName = n.trim(); nameEl.textContent = deviceName; }
-});
-
-// ── INICIAR CÂMERA LOCAL ──
+// ── INICIAR ──
 async function startCamera(deviceId = null) {
   const constraints = {
     video: deviceId
       ? { deviceId: { exact: deviceId }, width:{ideal:1920}, height:{ideal:1080} }
       : { facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} },
-    audio: true // Ativado áudio para mandar sinal completo ao OBS se necessário
+    audio: false
   };
 
+  let stream;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-    currentStream = stream;
-
-    const track = stream.getVideoTracks()[0];
-    currentDeviceId = track.getSettings().deviceId;
-
-    await setupZoom(track);
-
-    const videoElement = document.getElementById('video');
-    videoElement.srcObject = stream;
-
-    document.getElementById('setupScreen').style.display = 'none';
-    document.getElementById('camScreen').style.display = 'block';
-    document.getElementById('camNameBadge').textContent = deviceName;
-
-    try { await screen.orientation.lock('landscape'); } catch(e) {}
-    try { document.documentElement.requestFullscreen?.(); } catch(e) {}
-
-    await loadCameras();
-    keepAwake();
-
-    // Inicia conexão ativa para o ID especificado no input da mesa
-    const targetMesaId = document.getElementById('serverInput').value.trim();
-    if (targetMesaId) {
-      connectToOBS(targetMesaId);
-    } else {
-      setConn('error');
-      alert('Por favor, digite o ID cadastrado na fonte do OBS (Ex: CAM1).');
-    }
-
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
   } catch(e) {
-    alert('Permissão de câmera necessária ou dispositivo ocupado: ' + e.message);
+    alert('Permissão de câmera necessária.');
+    return;
   }
+
+  // Para stream anterior
+  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
+  currentStream = stream;
+
+  const track = stream.getVideoTracks()[0];
+  currentDeviceId = track.getSettings().deviceId;
+
+  // Configurar zoom via capabilities
+  await setupZoom(track);
+
+  const video = document.getElementById('video');
+  video.srcObject = stream;
+
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('camScreen').style.display = 'block';
+  document.getElementById('camNameBadge').textContent = deviceName;
+
+  try { await screen.orientation.lock('landscape'); } catch(e) {}
+  try { document.documentElement.requestFullscreen?.(); } catch(e) {}
+
+  // Carregar lista de câmeras disponíveis
+  await loadCameras();
+
+  keepAwake();
+
+  const serverUrl = document.getElementById('serverInput').value.trim();
+  if (!ws || ws.readyState !== WebSocket.OPEN) connectWS(serverUrl);
+
+  // Auto-demo
+  if (serverUrl.includes('192.168.1.100')) setTimeout(startDemo, 800);
 }
 
-// ── CONEXÃO ATIVA ORDENADA (WEBRTC PEERJS) ──
-function connectToOBS(targetId) {
-  setConn('connecting');
-  if(peer) peer.destroy();
-  
-  // ID temporário aleatório do celular
-  peer = new Peer('CELL-' + Math.floor(10000 + Math.random() * 90000), {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    }
-  });
-
-  peer.on('open', () => {
-    console.log("Conectando dados e vídeo...");
-    
-    // 1. CONEXÃO DE DADOS (Doca do OBS - Tally e Intercom)
-    dataConn = peer.connect(targetId + '-CONTROL');
-    
-    dataConn.on('open', () => {
-      setConn('connected');
-      console.log("Canal de comandos com a doca sincronizado!");
-    });
-
-    dataConn.on('data', (data) => {
-      if (data.type === 'command') receiveCommand(data.msg);
-      if (data.type === 'tally') setTally(data.state);
-    });
-
-    // 2. CONEXÃO DE VÍDEO (Fonte de Navegador do OBS)
-    if (currentStream) {
-      setTimeout(() => {
-        mediaCall = peer.call(targetId, currentStream);
-        console.log("Sinal de vídeo enviado para a fonte!");
-      }, 400);
-    }
-
-    dataConn.on('close', () => { setConn('error'); retryConnection(targetId); });
-    dataConn.on('error', () => { setConn('error'); retryConnection(targetId); });
-  });
-
-  peer.on('error', (err) => {
-    setConn('error');
-    retryConnection(targetId);
-  });
-}
-  setConn('connecting');
-  if(peer) peer.destroy();
-  
-  // ID exclusivo temporário do celular para autenticação limpa na rede global PeerJS
-  peer = new Peer('CELL-' + Math.floor(10000 + Math.random() * 90000), {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    }
-  });
-
-  peer.on('open', () => {
-    console.log("Conectando dados ao OBS Receptor no ID:", targetId);
-    
-    // 1. Abre primeiro a conexão estável de dados
-    dataConn = peer.connect(targetId);
-    
-    dataConn.on('open', () => {
-      setConn('connected');
-      console.log("Canal de dados aberto! Iniciando chamada de vídeo assíncrona...");
-      
-      // 2. Faz o envio do vídeo e áudio apenas após a confirmação de que a porta de dados está aberta
-      if (currentStream) {
-        setTimeout(() => {
-          mediaCall = peer.call(targetId, currentStream);
-          console.log("Sinal de vídeo transmitido com sucesso!");
-        }, 300); // Delay técnico necessário para estabilização de sessão WebRTC
-      }
-    });
-
-    dataConn.on('data', (data) => {
-      if (data.type === 'command') receiveCommand(data.msg);
-      if (data.type === 'tally') setTally(data.state);
-    });
-
-    dataConn.on('close', () => { setConn('error'); retryConnection(targetId); });
-    dataConn.on('error', () => { setConn('error'); retryConnection(targetId); });
-  });
-
-  peer.on('error', (err) => {
-    console.error("Erro no PeerJS do celular:", err);
-    setConn('error');
-    retryConnection(targetId);
-  });
-
-function connectToOBS(targetId) {
-  setConn('connecting');
-  if(peer) peer.destroy();
-  
-  // Cria um ID temporário aleatório para o celular não chocar
-  peer = new Peer('CELL-' + Math.floor(10000 + Math.random() * 90000), {
-    config: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    }
-  });
-
-  peer.on('open', () => {
-    console.log("Conectando dados e vídeo de forma independente...");
-    
-    // 1. CONECTA NA DOCA (Comandos e Tally)
-    dataConn = peer.connect(targetId + '-CONTROL');
-    
-    dataConn.on('open', () => {
-      setConn('connected');
-      console.log("Conectado ao painel de controle com sucesso!");
-    });
-
-    dataConn.on('data', (data) => {
-      if (data.type === 'command') receiveCommand(data.msg);
-      if (data.type === 'tally') setTally(data.state);
-    });
-
-    // 2. ENVIA O VÍDEO PARA A FONTE DE NAVEGADOR
-    if (currentStream) {
-      setTimeout(() => {
-        mediaCall = peer.call(targetId, currentStream);
-        console.log("Fluxo de vídeo enviado para a fonte!");
-      }, 300);
-    }
-
-    dataConn.on('close', () => { setConn('error'); retryConnection(targetId); });
-    dataConn.on('error', () => { setConn('error'); retryConnection(targetId); });
-  });
-
-  peer.on('error', (err) => {
-    console.error(err);
-    setConn('error');
-    retryConnection(targetId);
-  });
-}
-  setTimeout(() => {
-    if (document.getElementById('camScreen').style.display === 'block') {
-      console.log("Tentando reconexão automática com o OBS...");
-      connectToOBS(targetId);
-    }
-  }, 4000);
-
-// ── CONTROLE DO TALLY COM LIMPEZA AUTOMÁTICA ──
-function setTally(state) {
-  const prev = currentTally;
-  currentTally = state;
-  
-  document.getElementById('tallyBorder').className = state;
-  document.getElementById('tallyPill').className   = state;
-  document.getElementById('tallyLabel').textContent = state==='program'?'AO VIVO':state==='preview'?'PRÉVIA':'OFF';
-  
-  // REGRA: Se a câmera sair do Ar (Corte efetuado), apaga automaticamente o comando antigo da tela
-  if (prev === 'program' && state !== 'program') {
-    pendingCmd = null; 
-    hideCommand();     
-  }
-}
-
-// ── SISTEMA DE INTERCOM (MENSAGENS DO DIRETOR) ──
-const cmdIcons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','zoom in':'🔍','afasta':'🔭','zoom out':'🔭','plano':'📐','close':'👤','stand by':'⏳','standby':'⏳','atenção':'⚠️','move':'↔️','pan':'↔️','tilt':'↕️','foco':'🎯','focus':'🎯' };
-function guessIcon(msg) { const l=msg.toLowerCase(); for(const[k,v] of Object.entries(cmdIcons)) if(l.includes(k)) return v; return '📢'; }
-
-function receiveCommand(msg) {
-  // Removida qualquer trava de Tally. Recebe e notifica a qualquer momento!
-  pendingCmd = msg;
-  showCommand(msg);
-}
-
-function showCommand(msg) {
-  document.getElementById('cmdText').textContent = msg;
-  document.getElementById('cmdIcon').textContent = guessIcon(msg);
-  document.getElementById('cmdOverlay').className = 'show';
-  flashScreen(); 
-  vibrate();
-}
-
-function hideCommand() { document.getElementById('cmdOverlay').className = ''; }
-
-function flashScreen() {
-  const f = document.getElementById('flashOverlay');
-  f.className = 'flash';
-  setTimeout(() => f.className = '', 110);
-}
-
-function vibrate() { try { navigator.vibrate?.([35,25,35]); } catch(e) {} }
-
-// ── PROCESSAMENTO DE ZOOM NATIVO E PINCH TOUCH ──
+// ── ZOOM ──
 async function setupZoom(track) {
   try {
     const caps = track.getCapabilities();
@@ -456,6 +316,7 @@ async function adjustZoom(delta) {
   try {
     const caps = track.getCapabilities();
     if (!caps.zoom) {
+      // Fallback: zoom digital via CSS transform
       zoomLevel = Math.max(1, Math.min(5, zoomLevel + delta));
       document.getElementById('video').style.transform = `scale(${zoomLevel})`;
       updateZoomLabel();
@@ -465,6 +326,7 @@ async function adjustZoom(delta) {
     await track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
     updateZoomLabel();
   } catch(e) {
+    // CSS zoom fallback
     zoomLevel = Math.max(1, Math.min(5, zoomLevel + delta));
     document.getElementById('video').style.transform = `scale(${zoomLevel})`;
     updateZoomLabel();
@@ -475,6 +337,7 @@ function updateZoomLabel() {
   document.getElementById('zoomLabel').textContent = zoomLevel.toFixed(1).replace('.0','') + '×';
 }
 
+// Pinça para zoom
 let pinchStart = null;
 let pinchZoomStart = 1;
 document.addEventListener('touchstart', e => {
@@ -483,7 +346,6 @@ document.addEventListener('touchstart', e => {
     pinchZoomStart = zoomLevel;
   }
 }, { passive: true });
-
 document.addEventListener('touchmove', e => {
   if (e.touches.length === 2 && pinchStart) {
     const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
@@ -508,7 +370,7 @@ async function applyZoomDirect(zoom) {
   document.getElementById('video').style.transform = `scale(${zoom})`;
 }
 
-// ── DETECÇÃO E TROCA MULTI-LENTES (CAMERAS DISPONÍVEIS) ──
+// ── CÂMERAS DISPONÍVEIS ──
 async function loadCameras() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -521,6 +383,7 @@ function renderLensMenu() {
   const menu = document.getElementById('lensMenu');
   menu.innerHTML = '';
 
+  // Labels amigáveis
   const labels = availableCameras.map((cam, i) => {
     const label = cam.label || `Câmera ${i+1}`;
     let name = label;
@@ -539,6 +402,7 @@ function renderLensMenu() {
     menu.appendChild(btn);
   });
 
+  // Se só 1 câmera, esconde o botão de troca
   document.getElementById('camControls').querySelector('[title="Trocar câmera"]').style.display =
     availableCameras.length <= 1 ? 'none' : 'flex';
 }
@@ -556,6 +420,7 @@ function toggleLensMenu() {
   document.getElementById('lensMenu').classList.toggle('show', lensMenuOpen);
 }
 
+// Fechar menu ao tocar fora
 document.addEventListener('touchstart', e => {
   if (lensMenuOpen && !e.target.closest('#lensMenu') && !e.target.closest('[title="Trocar câmera"]')) {
     lensMenuOpen = false;
@@ -563,7 +428,7 @@ document.addEventListener('touchstart', e => {
   }
 }, { passive: true });
 
-// Ocultar HUD de controles automaticamente após 4 segundos sem toque
+// Auto-hide controles após 4s de inatividade
 let hideTimer;
 function resetHideTimer() {
   document.getElementById('camControls').classList.remove('hidden');
@@ -574,21 +439,74 @@ function resetHideTimer() {
 }
 document.addEventListener('touchstart', resetHideTimer, { passive: true });
 
-// ── FEEDBACK DE CONEXÃO NO HUD ──
+// ── WEBSOCKET ──
+function connectWS(url) {
+  setConn('connecting');
+  try { ws = new WebSocket(url); } catch(e) { retry(url); return; }
+  ws.onopen = () => {
+    setConn('connected');
+    ws.send(JSON.stringify({ type:'register', id:deviceName, name:deviceName }));
+  };
+  ws.onmessage = (evt) => {
+    try {
+      const data = JSON.parse(evt.data);
+      if (data.type === 'command' && matchesMe(data.target)) receiveCommand(data.msg);
+      if (data.type === 'tally'   && matchesMe(data.target)) setTally(data.state);
+    } catch(e) {}
+  };
+  ws.onclose = () => { setConn('error'); retry(url); };
+  ws.onerror = () => { setConn('error'); };
+}
+function retry(url) { setTimeout(() => connectWS(url), 4000); }
+function matchesMe(t) { if(!t) return false; return t.toLowerCase()===deviceName.toLowerCase() || t==='all'; }
+
+// ── TALLY ──
+function setTally(state) {
+  const prev = currentTally;
+  currentTally = state;
+  document.getElementById('tallyBorder').className = state;
+  document.getElementById('tallyPill').className   = state;
+  document.getElementById('tallyLabel').textContent = state==='program'?'AO VIVO':state==='preview'?'PRÉVIA':'OFF';
+  if (state === 'program') hideCommand();
+  if (prev === 'program' && state !== 'program' && pendingCmd) showCommand(pendingCmd);
+}
+
+// ── COMANDO ──
+const cmdIcons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','zoom in':'🔍','afasta':'🔭','zoom out':'🔭','plano':'📐','close':'👤','stand by':'⏳','standby':'⏳','atenção':'⚠️','move':'↔️','pan':'↔️','tilt':'↕️','foco':'🎯','focus':'🎯' };
+function guessIcon(msg) { const l=msg.toLowerCase(); for(const[k,v] of Object.entries(cmdIcons)) if(l.includes(k)) return v; return '📢'; }
+
+function receiveCommand(msg) {
+  pendingCmd = msg;
+  if (currentTally !== 'program') showCommand(msg);
+}
+function showCommand(msg) {
+  document.getElementById('cmdText').textContent = msg;
+  document.getElementById('cmdIcon').textContent = guessIcon(msg);
+  document.getElementById('cmdOverlay').classList.add('show');
+  flashScreen(); vibrate();
+}
+function hideCommand() { document.getElementById('cmdOverlay').classList.remove('show'); }
+
+function flashScreen() {
+  const f = document.getElementById('flashOverlay');
+  f.classList.add('flash');
+  setTimeout(() => f.classList.remove('flash'), 110);
+}
+function vibrate() { try { navigator.vibrate?.([35,25,35]); } catch(e) {} }
+
+// ── CONN ──
 function setConn(state) {
   const dot = document.getElementById('connDot');
   const lbl = document.getElementById('connLabel');
   if(state==='connected'){dot.className='conn-dot on';lbl.textContent='CONECTADO';}
-  else if(state==='error'){dot.className='conn-dot err';lbl.textContent='DESCONECTADO';}
+  else if(state==='error'){dot.className='conn-dot err';lbl.textContent='RECONECTANDO…';}
   else{dot.className='conn-dot';lbl.textContent='CONECTANDO…';}
 }
 
-// ── FECHAR TUDO E SAIR ──
+// ── SAIR ──
 function exitCamera() {
   if (confirm('Sair da câmera?')) {
-    if (mediaCall) mediaCall.close();
-    if (dataConn) dataConn.close();
-    if (peer) peer.destroy();
+    if (ws) ws.close();
     if (currentStream) currentStream.getTracks().forEach(t => t.stop());
     document.getElementById('camScreen').style.display = 'none';
     document.getElementById('setupScreen').style.display = 'flex';
@@ -596,10 +514,28 @@ function exitCamera() {
   }
 }
 
-// ── MANTER TELA ACESA (WAKE LOCK NATIVO) ──
+// ── WAKE LOCK ──
 async function keepAwake() {
   try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e) {}
   document.addEventListener('visibilitychange', async () => { if(document.visibilityState==='visible') keepAwake(); });
+}
+
+// ── DEMO ──
+function startDemo() {
+  setConn('connected');
+  document.getElementById('connLabel').textContent='MODO DEMO';
+  let s=0;
+  const steps=[
+    ()=>setTally('preview'),
+    ()=>receiveCommand('🔍 Aproxima no apresentador'),
+    ()=>receiveCommand('📐 Plano americano'),
+    ()=>setTally('program'),
+    ()=>setTally('preview'),
+    ()=>receiveCommand('✋ CORTA — ótimo!'),
+    ()=>setTally('none'),
+  ];
+  const run=()=>{ if(s<steps.length){steps[s++]();setTimeout(run,3500);} };
+  setTimeout(run,1500);
 }
 </script>
 </body>
