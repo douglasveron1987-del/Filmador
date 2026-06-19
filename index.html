@@ -166,7 +166,7 @@
   <div class="setup-subtitle">Este nome aparecerá no painel do operador</div>
   <div class="server-toggle" onclick="toggleServer()">▸ Configurar servidor</div>
   <div id="serverWrap">
-    <input class="setup-server-input" id="serverInput" type="text" value="ws://192.168.1.100:8080" placeholder="ws://IP:8080" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input class="setup-server-input" id="serverInput" type="text" value="ws://192.168.1.8:3000" placeholder="ws://IP:3000" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
   <button class="start-btn" onclick="startCamera()">Iniciar Câmera</button>
 </div>
@@ -294,7 +294,7 @@ async function startCamera(deviceId = null) {
   if (!ws || ws.readyState !== WebSocket.OPEN) connectWS(serverUrl);
 
   // Auto-demo
-  if (serverUrl.includes('192.168.1.100')) setTimeout(startDemo, 800);
+  if (serverUrl.includes('192.168.1.8')) setTimeout(startDemo, 800);
 }
 
 // ── ZOOM ──
