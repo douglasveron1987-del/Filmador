@@ -37,14 +37,28 @@
 </div>
 
 <script>
-// Cria um ID único para o painel do diretor na nuvem
-const peerDiretor = new Peer('CAM-DIRETOR-' + Math.floor(100 + Math.random() * 900), {
+const peerDiretor = new Peer('CAM-DIRETOR-PAINEL', {
   config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
 });
+
+// Banco de dados temporário para mapear qual celular é qual câmera
+const mapaCelulares = {};
 
 peerDiretor.on('open', () => {
   document.getElementById('netStatus').textContent = "Rede do Diretor: PRONTA";
   document.getElementById('netStatus').style.color = "#22c55e";
+});
+
+// Fica escutando as fontes do OBS avisarem qual celular acabou de se conectar
+peerDiretor.on('connection', (conn) => {
+  if (conn.peer.startsWith('CAM-FONTE-')) {
+    conn.on('data', (data) => {
+      if (data.type === 'registro_celular') {
+        mapaCelulares[data.cam] = data.celularPeerId;
+        console.log(`Mapeado: ${data.cam} está no dispositivo ${data.celularPeerId}`);
+      }
+    });
+  }
 });
 
 function enviarMensagemIntercom() {
@@ -53,13 +67,20 @@ function enviarMensagemIntercom() {
   
   if (!msgText) return;
 
-  // Cria uma conexão rápida direta com o celular alvo para disparar o comando
-  const connComando = peerDiretor.connect(target);
+  const celularID = mapaCelulares[target];
+  
+  if (!celularID) {
+    alert(`A ${target} não está conectada ou o celular ainda não foi pareado.`);
+    return;
+  }
+
+  // Conecta DIRETO no celular do operador, sem passar por intermediários
+  const connComando = peerDiretor.connect(celularID);
   
   connComando.on('open', () => {
     connComando.send({ type: 'command', msg: msgText });
-    console.log("Comando enviado via rede para: " + target);
-    setTimeout(() => connComando.close(), 500); // Fecha após enviar para liberar o canal
+    console.log("Comando enviado direto para o celular: " + target);
+    setTimeout(() => connComando.close(), 500);
   });
 
   document.getElementById('cmdInput').value = '';
