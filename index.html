@@ -8,209 +8,122 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Filmador</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Helvetica Neue',Arial,sans-serif; -webkit-user-select:none; user-select:none; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; background:#000; overflow:hidden; font-family:'Helvetica Neue',Arial,sans-serif; -webkit-user-select:none; user-select:none; }
 
   /* ── SETUP ── */
-  #setupScreen {
+  #setup {
     position:fixed; inset:0; background:#0c0c0e;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     z-index:100; padding:40px 32px;
   }
-  .setup-logo { font-size:10px; font-weight:700; letter-spacing:0.3em; color:rgba(255,255,255,0.18); text-transform:uppercase; margin-bottom:48px; }
-  #deviceNameDisplay { font-size:28px; font-weight:600; color:#fff; text-align:center; margin-bottom:8px; cursor:pointer; }
-  .setup-subtitle { font-size:14px; color:rgba(255,255,255,0.3); margin-bottom:44px; text-align:center; }
-  .server-toggle { font-size:12px; color:rgba(255,255,255,0.22); cursor:pointer; margin-bottom:12px; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,0.12); }
-  #serverWrap { display:none; width:100%; max-width:300px; margin-bottom:20px; }
-  #serverWrap.open { display:block; }
-  .setup-server-input { background:rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; color:#fff; font-size:14px; padding:12px 16px; outline:none; width:100%; text-align:center; font-family:'SF Mono','Courier New',monospace; -webkit-appearance:none; }
-  .start-btn { width:100%; max-width:300px; padding:18px; border-radius:16px; border:none; background:#fff; color:#000; font-size:17px; font-weight:700; cursor:pointer; margin-top:8px; transition:opacity 0.15s,transform 0.1s; }
-  .start-btn:active { opacity:0.75; transform:scale(0.98); }
+  .logo { font-size:10px; font-weight:700; letter-spacing:0.3em; color:rgba(255,255,255,0.18); text-transform:uppercase; margin-bottom:48px; }
+  #devName { font-size:28px; font-weight:600; color:#fff; text-align:center; margin-bottom:8px; cursor:pointer; }
+  .sub { font-size:14px; color:rgba(255,255,255,0.3); margin-bottom:16px; text-align:center; }
+
+  .obs-config { width:100%; max-width:300px; margin-bottom:32px; }
+  .obs-config label { font-size:11px; font-weight:700; letter-spacing:0.1em; color:rgba(255,255,255,0.25); text-transform:uppercase; display:block; margin-bottom:8px; }
+  .obs-input {
+    width:100%; background:rgba(255,255,255,0.05);
+    border:1.5px solid rgba(255,255,255,0.1); border-radius:10px;
+    color:#fff; font-size:14px; padding:12px 16px; outline:none;
+    text-align:center; font-family:'SF Mono','Courier New',monospace;
+    -webkit-appearance:none; transition:border-color 0.2s;
+  }
+  .obs-input:focus { border-color:rgba(255,255,255,0.3); }
+
+  .start { width:100%; max-width:300px; padding:18px; border-radius:16px; border:none; background:#fff; color:#000; font-size:17px; font-weight:700; cursor:pointer; transition:opacity 0.15s,transform 0.1s; }
+  .start:active { opacity:0.75; transform:scale(0.98); }
 
   /* ── CAM SCREEN ── */
-  #camScreen { position:fixed; inset:0; display:none; }
+  #cam { position:fixed; inset:0; display:none; }
   video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 
   /* ── TALLY BORDER ── */
-  #tallyBorder { position:absolute; inset:0; border:5px solid transparent; pointer-events:none; z-index:10; transition:border-color 0.3s,box-shadow 0.3s; }
-  #tallyBorder.preview { border-color:#22c55e; box-shadow:inset 0 0 32px rgba(34,197,94,0.2); }
-  #tallyBorder.program { border-color:#e53935; box-shadow:inset 0 0 36px rgba(229,57,53,0.25); animation:tallyPulse 1.4s ease-in-out infinite; }
-  @keyframes tallyPulse { 0%,100%{box-shadow:inset 0 0 36px rgba(229,57,53,0.25)} 50%{box-shadow:inset 0 0 56px rgba(229,57,53,0.42)} }
+  #tb { position:absolute; inset:0; border:5px solid transparent; pointer-events:none; z-index:10; transition:all 0.3s; }
+  #tb.preview { border-color:#22c55e; box-shadow:inset 0 0 32px rgba(34,197,94,0.2); }
+  #tb.program { border-color:#e53935; box-shadow:inset 0 0 36px rgba(229,57,53,0.25); animation:tp 1.4s ease-in-out infinite; }
+  @keyframes tp { 0%,100%{box-shadow:inset 0 0 36px rgba(229,57,53,0.25)} 50%{box-shadow:inset 0 0 56px rgba(229,57,53,0.42)} }
 
   /* ── HUD ── */
   #hud { position:absolute; inset:0; pointer-events:none; z-index:20; }
+  #badge { position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); left:16px; font-size:11px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.45); text-transform:uppercase; }
+  #tpill { position:absolute; top:calc(env(safe-area-inset-top,0px) + 10px); right:14px; display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:100px; background:rgba(0,0,0,0.4); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:all 0.3s; }
+  .td { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.2); transition:all 0.3s; }
+  #tpill.preview .td { background:#22c55e; box-shadow:0 0 6px #22c55e; }
+  #tpill.program .td { background:#e53935; box-shadow:0 0 6px #e53935; animation:dp 1.4s infinite; }
+  @keyframes dp { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  #tlbl { font-size:11px; font-weight:700; letter-spacing:0.12em; color:rgba(255,255,255,0.35); transition:color 0.3s; }
+  #tpill.preview #tlbl { color:#22c55e; }
+  #tpill.program #tlbl { color:#e53935; }
 
-  #camNameBadge { position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); left:16px; font-size:11px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.45); text-transform:uppercase; max-width:45vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #conn { position:absolute; bottom:calc(env(safe-area-inset-bottom,0px)+16px); left:16px; display:flex; align-items:center; gap:5px; pointer-events:auto; }
+  .cnd { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.15); transition:background 0.3s; }
+  .cnd.on { background:#22c55e; }
+  .cnd.err { background:#e53935; }
+  #clbl { font-size:10px; color:rgba(255,255,255,0.22); letter-spacing:0.08em; font-weight:600; }
 
-  #tallyPill { position:absolute; top:calc(env(safe-area-inset-top,0px) + 10px); right:14px; display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:100px; background:rgba(0,0,0,0.4); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:all 0.3s; }
-  .tally-dot-small { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.2); transition:all 0.3s; }
-  #tallyPill.preview .tally-dot-small { background:#22c55e; box-shadow:0 0 6px #22c55e; }
-  #tallyPill.program .tally-dot-small { background:#e53935; box-shadow:0 0 6px #e53935; animation:dotPulse 1.4s infinite; }
-  @keyframes dotPulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
-  #tallyLabel { font-size:11px; font-weight:700; letter-spacing:0.12em; color:rgba(255,255,255,0.35); transition:color 0.3s; }
-  #tallyPill.preview #tallyLabel { color:#22c55e; }
-  #tallyPill.program #tallyLabel { color:#e53935; }
+  #exit { position:absolute; bottom:calc(env(safe-area-inset-bottom,0px)+12px); right:14px; padding:6px 14px; border-radius:100px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:rgba(255,255,255,0.25); font-size:11px; font-weight:600; cursor:pointer; pointer-events:auto; }
 
-  /* ── CONTROLES DE CÂMERA — lado direito, discretos ── */
-  #camControls {
-    position:absolute;
-    right:14px;
-    top:50%;
-    transform:translateY(-50%);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-    pointer-events:auto;
-    z-index:25;
-    opacity:1;
-    transition:opacity 0.4s;
-  }
-  #camControls.hidden { opacity:0; pointer-events:none; }
-
-  .ctrl-btn {
-    width:44px; height:44px;
-    border-radius:50%;
-    border:1px solid rgba(255,255,255,0.18);
-    background:rgba(0,0,0,0.42);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    color:#fff;
-    font-size:18px;
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer;
-    transition:background 0.15s, transform 0.1s;
-    -webkit-user-select:none;
-  }
-  .ctrl-btn:active { background:rgba(255,255,255,0.2); transform:scale(0.93); }
-
-  /* Zoom label */
-  #zoomLabel {
-    font-size:12px;
-    font-weight:700;
-    color:rgba(255,255,255,0.7);
-    font-family:'SF Mono','Courier New',monospace;
-    background:rgba(0,0,0,0.38);
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
-    padding:4px 8px;
-    border-radius:6px;
-    min-width:44px;
-    text-align:center;
-    letter-spacing:0.04em;
-  }
-
-  /* Seletor de lente (aparece ao tocar no botão câmera) */
-  #lensMenu {
-    position:absolute;
-    right:66px;
-    top:50%;
-    transform:translateY(-50%);
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    z-index:26;
-    opacity:0;
-    pointer-events:none;
-    transition:opacity 0.2s;
-  }
-  #lensMenu.show { opacity:1; pointer-events:auto; }
-
-  .lens-btn {
-    padding:8px 14px;
-    border-radius:10px;
-    border:1px solid rgba(255,255,255,0.2);
-    background:rgba(0,0,0,0.6);
-    backdrop-filter:blur(12px);
-    -webkit-backdrop-filter:blur(12px);
-    color:#fff;
-    font-size:13px;
-    font-weight:600;
-    cursor:pointer;
-    white-space:nowrap;
-    transition:background 0.15s;
-    text-align:center;
-  }
-  .lens-btn:active { background:rgba(255,255,255,0.2); }
-  .lens-btn.active { border-color:#22c55e; color:#22c55e; }
-
-  /* ── CONN + SAIR ── */
-  #connStatus { position:absolute; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); left:16px; display:flex; align-items:center; gap:5px; pointer-events:auto; }
-  .conn-dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.15); transition:background 0.3s; }
-  .conn-dot.on { background:#22c55e; }
-  .conn-dot.err { background:#e53935; }
-  #connLabel { font-size:10px; color:rgba(255,255,255,0.22); letter-spacing:0.08em; font-weight:600; }
-
-  #exitBtn { position:absolute; bottom:calc(env(safe-area-inset-bottom,0px) + 12px); right:14px; padding:6px 14px; border-radius:100px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.3); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:rgba(255,255,255,0.25); font-size:11px; font-weight:600; letter-spacing:0.08em; cursor:pointer; pointer-events:auto; }
+  /* ── CONTROLES ── */
+  #ctrls { position:absolute; right:14px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; align-items:center; gap:10px; pointer-events:auto; z-index:25; transition:opacity 0.4s; }
+  #ctrls.hidden { opacity:0; pointer-events:none; }
+  .cb { width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.42); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#fff; font-size:18px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; }
+  .cb:active { background:rgba(255,255,255,0.2); transform:scale(0.93); }
+  #zlbl { font-size:12px; font-weight:700; color:rgba(255,255,255,0.7); background:rgba(0,0,0,0.38); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); padding:4px 8px; border-radius:6px; min-width:44px; text-align:center; }
 
   /* ── COMANDO OVERLAY ── */
-  #cmdOverlay { position:absolute; top:calc(env(safe-area-inset-top,0px) + 48px); left:14px; right:70px; z-index:30; pointer-events:none; opacity:0; transform:translateY(-8px); transition:opacity 0.28s ease,transform 0.32s cubic-bezier(0.34,1.4,0.64,1); }
-  #cmdOverlay.show { opacity:1; transform:translateY(0); }
-  .cmd-bubble { background:rgba(8,8,14,0.82); backdrop-filter:blur(18px) saturate(200%); -webkit-backdrop-filter:blur(18px) saturate(200%); border-radius:13px; padding:13px 15px; display:flex; align-items:center; gap:12px; border:1px solid rgba(255,255,255,0.09); }
-  .cmd-icon-wrap { width:38px; height:38px; border-radius:9px; background:rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-  .cmd-text-wrap { flex:1; min-width:0; }
-  .cmd-from { font-size:9px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-bottom:3px; }
-  #cmdText { font-size:18px; font-weight:600; color:#fff; line-height:1.25; }
+  #cmdOv { position:absolute; top:calc(env(safe-area-inset-top,0px)+48px); left:14px; right:70px; z-index:30; pointer-events:none; opacity:0; transform:translateY(-8px); transition:opacity 0.28s ease,transform 0.32s cubic-bezier(0.34,1.4,0.64,1); }
+  #cmdOv.show { opacity:1; transform:translateY(0); }
+  .cb2 { background:rgba(8,8,14,0.82); backdrop-filter:blur(18px) saturate(200%); -webkit-backdrop-filter:blur(18px) saturate(200%); border-radius:13px; padding:13px 15px; display:flex; align-items:center; gap:12px; border:1px solid rgba(255,255,255,0.09); }
+  .ci { width:38px; height:38px; border-radius:9px; background:rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .ct { flex:1; min-width:0; }
+  .cf { font-size:9px; font-weight:700; letter-spacing:0.16em; color:rgba(255,255,255,0.3); text-transform:uppercase; margin-bottom:3px; }
+  #ctxt { font-size:18px; font-weight:600; color:#fff; line-height:1.25; }
 
-  /* Flash */
-  #flashOverlay { position:absolute; inset:0; background:rgba(255,255,255,0); pointer-events:none; z-index:50; transition:background 0.07s; }
-  #flashOverlay.flash { background:rgba(255,255,255,0.14); }
+  #flash { position:absolute; inset:0; background:rgba(255,255,255,0); pointer-events:none; z-index:50; transition:background 0.07s; }
+  #flash.fl { background:rgba(255,255,255,0.14); }
 </style>
 </head>
 <body>
 
 <!-- SETUP -->
-<div id="setupScreen">
-  <div class="setup-logo">CamCmd · Filmador</div>
-  <div id="deviceNameDisplay">Carregando…</div>
-  <div class="setup-subtitle">Este nome aparecerá no painel do operador</div>
-  <div class="server-toggle" onclick="toggleServer()">▸ Configurar servidor</div>
-  <div id="serverWrap">
-    <input class="setup-server-input" id="serverInput" type="text" value="ws://192.168.1.8:3000" placeholder="ws://IP:3000" autocomplete="off" autocorrect="off" spellcheck="false">
+<div id="setup">
+  <div class="logo">CamCmd · Filmador</div>
+  <div id="devName">Carregando...</div>
+  <div class="sub">Nome que aparecerá no OBS</div>
+
+  <div class="obs-config">
+    <label>IP do computador com OBS</label>
+    <input class="obs-input" id="obsIp" type="text" value="192.168.1.8" placeholder="192.168.1.X" autocomplete="off" autocorrect="off" spellcheck="false">
   </div>
-  <button class="start-btn" onclick="startCamera()">Iniciar Câmera</button>
+
+  <button class="start" onclick="iniciar()">Iniciar Câmera</button>
 </div>
 
 <!-- CAM SCREEN -->
-<div id="camScreen">
+<div id="cam">
   <video id="video" autoplay muted playsinline webkit-playsinline></video>
-
-  <div id="tallyBorder"></div>
-  <div id="flashOverlay"></div>
-
+  <div id="tb"></div>
+  <div id="flash"></div>
   <div id="hud">
-    <div id="camNameBadge"></div>
-    <div id="tallyPill">
-      <div class="tally-dot-small"></div>
-      <span id="tallyLabel">OFF</span>
-    </div>
-    <div id="connStatus">
-      <div class="conn-dot" id="connDot"></div>
-      <span id="connLabel">DESCONECTADO</span>
-    </div>
-    <button id="exitBtn" onclick="exitCamera()">SAIR</button>
+    <div id="badge"></div>
+    <div id="tpill"><div class="td"></div><span id="tlbl">OFF</span></div>
+    <div id="conn"><div class="cnd" id="cnd"></div><span id="clbl">CONECTANDO...</span></div>
+    <button id="exit" onclick="sair()">SAIR</button>
   </div>
-
-  <!-- CONTROLES LATERAIS -->
-  <div id="camControls">
-    <button class="ctrl-btn" id="zoomInBtn" onclick="adjustZoom(0.5)" title="Aproximar">＋</button>
-    <div id="zoomLabel">1×</div>
-    <button class="ctrl-btn" id="zoomOutBtn" onclick="adjustZoom(-0.5)" title="Afastar">－</button>
-    <button class="ctrl-btn" onclick="toggleLensMenu()" title="Trocar câmera">⇄</button>
+  <div id="ctrls">
+    <button class="cb" onclick="ajZoom(0.5)">＋</button>
+    <div id="zlbl">1×</div>
+    <button class="cb" onclick="ajZoom(-0.5)">－</button>
+    <button class="cb" onclick="flipCam()">⇄</button>
   </div>
-
-  <!-- MENU DE LENTES -->
-  <div id="lensMenu">
-    <!-- Preenchido dinamicamente -->
-  </div>
-
-  <!-- COMANDO -->
-  <div id="cmdOverlay">
-    <div class="cmd-bubble">
-      <div class="cmd-icon-wrap" id="cmdIcon">📢</div>
-      <div class="cmd-text-wrap">
-        <div class="cmd-from">Diretor</div>
-        <div id="cmdText"></div>
+  <div id="cmdOv">
+    <div class="cb2">
+      <div class="ci" id="cico">📢</div>
+      <div class="ct">
+        <div class="cf">Diretor</div>
+        <div id="ctxt"></div>
       </div>
     </div>
   </div>
@@ -218,322 +131,248 @@
 
 <script>
 // ── NOME DO DISPOSITIVO ──
-function getDeviceName() {
-  const ua = navigator.userAgent;
+var devName = (function() {
+  var ua = navigator.userAgent;
   if (/iPhone/.test(ua)) return 'iPhone';
   if (/iPad/.test(ua)) return 'iPad';
-  const android = ua.match(/Android[^;]*;\s*([^)]+)\)/);
-  if (android) return android[1].trim().split(' ').slice(0,3).join(' ');
+  var m = ua.match(/Android[^;]*;\s*([^)]+)\)/);
+  if (m) return m[1].trim().split(' ').slice(0,3).join(' ');
   return 'Câmera';
-}
-let deviceName = getDeviceName();
-const nameEl = document.getElementById('deviceNameDisplay');
-nameEl.textContent = deviceName;
-nameEl.addEventListener('click', () => {
-  const n = prompt('Nome desta câmera:', deviceName);
-  if (n && n.trim()) { deviceName = n.trim(); nameEl.textContent = deviceName; }
+})();
+
+document.getElementById('devName').textContent = devName;
+document.getElementById('devName').addEventListener('click', function() {
+  var n = prompt('Nome desta câmera:', devName);
+  if (n && n.trim()) { devName = n.trim(); document.getElementById('devName').textContent = devName; }
 });
 
-function toggleServer() { document.getElementById('serverWrap').classList.toggle('open'); }
-
 // ── STATE ──
-let ws = null;
-let currentTally = 'none';
-let pendingCmd = null;
-let currentStream = null;
-let currentDeviceId = null;
-let availableCameras = [];
-let zoomLevel = 1.0;
-let zoomMin = 1.0;
-let zoomMax = 5.0;
-let lensMenuOpen = false;
+var ws = null;
+var tally = 'none';
+var pendingCmd = null;
+var stream = null;
+var zoomLvl = 1;
+var facingMode = 'environment';
+var obsIp = '192.168.1.8';
+var myCamName = ''; // nome da cena no OBS que corresponde a esta câmera
 
 // ── INICIAR ──
-async function startCamera(deviceId = null) {
-  const constraints = {
-    video: deviceId
-      ? { deviceId: { exact: deviceId }, width:{ideal:1920}, height:{ideal:1080} }
-      : { facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} },
-    audio: false
-  };
+async function iniciar() {
+  obsIp = document.getElementById('obsIp').value.trim();
 
-  let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
   } catch(e) {
-    alert('Permissão de câmera necessária.');
+    alert('Permissão de câmera necessária. Habilite nas configurações do Safari.');
     return;
   }
 
-  // Para stream anterior
-  if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-  currentStream = stream;
-
-  const track = stream.getVideoTracks()[0];
-  currentDeviceId = track.getSettings().deviceId;
-
-  // Configurar zoom via capabilities
-  await setupZoom(track);
-
-  const video = document.getElementById('video');
-  video.srcObject = stream;
-
-  document.getElementById('setupScreen').style.display = 'none';
-  document.getElementById('camScreen').style.display = 'block';
-  document.getElementById('camNameBadge').textContent = deviceName;
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('cam').style.display = 'block';
+  document.getElementById('video').srcObject = stream;
+  document.getElementById('badge').textContent = devName;
 
   try { await screen.orientation.lock('landscape'); } catch(e) {}
-  try { document.documentElement.requestFullscreen?.(); } catch(e) {}
-
-  // Carregar lista de câmeras disponíveis
-  await loadCameras();
+  try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch(e) {}
 
   keepAwake();
-
-  const serverUrl = document.getElementById('serverInput').value.trim();
-  if (!ws || ws.readyState !== WebSocket.OPEN) connectWS(serverUrl);
-
+  connectOBS();
 }
 
-// ── ZOOM ──
-async function setupZoom(track) {
-  try {
-    const caps = track.getCapabilities();
-    if (caps.zoom) {
-      zoomMin = caps.zoom.min || 1;
-      zoomMax = caps.zoom.max || 5;
-      zoomLevel = caps.zoom.min || 1;
-      updateZoomLabel();
-    }
-  } catch(e) {}
-}
+// ── CONECTAR AO OBS WEBSOCKET ──
+// O OBS WebSocket atua como relay de comandos
+// O app se conecta diretamente ao OBS na porta 4455
+function connectOBS() {
+  setConn(false, 'CONECTANDO...');
+  var url = 'ws://' + obsIp + ':4455';
 
-async function adjustZoom(delta) {
-  if (!currentStream) return;
-  const track = currentStream.getVideoTracks()[0];
-  try {
-    const caps = track.getCapabilities();
-    if (!caps.zoom) {
-      // Fallback: zoom digital via CSS transform
-      zoomLevel = Math.max(1, Math.min(5, zoomLevel + delta));
-      document.getElementById('video').style.transform = `scale(${zoomLevel})`;
-      updateZoomLabel();
-      return;
-    }
-    zoomLevel = Math.max(zoomMin, Math.min(zoomMax, zoomLevel + delta));
-    await track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
-    updateZoomLabel();
-  } catch(e) {
-    // CSS zoom fallback
-    zoomLevel = Math.max(1, Math.min(5, zoomLevel + delta));
-    document.getElementById('video').style.transform = `scale(${zoomLevel})`;
-    updateZoomLabel();
-  }
-}
+  try { ws = new WebSocket(url); } catch(e) { retry(); return; }
 
-function updateZoomLabel() {
-  document.getElementById('zoomLabel').textContent = zoomLevel.toFixed(1).replace('.0','') + '×';
-}
-
-// Pinça para zoom
-let pinchStart = null;
-let pinchZoomStart = 1;
-document.addEventListener('touchstart', e => {
-  if (e.touches.length === 2 && document.getElementById('camScreen').style.display !== 'none') {
-    pinchStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    pinchZoomStart = zoomLevel;
-  }
-}, { passive: true });
-document.addEventListener('touchmove', e => {
-  if (e.touches.length === 2 && pinchStart) {
-    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    const scale = dist / pinchStart;
-    const newZoom = Math.max(zoomMin, Math.min(zoomMax, pinchZoomStart * scale));
-    if (Math.abs(newZoom - zoomLevel) > 0.05) {
-      zoomLevel = newZoom;
-      applyZoomDirect(zoomLevel);
-      updateZoomLabel();
-    }
-  }
-}, { passive: true });
-document.addEventListener('touchend', () => { pinchStart = null; });
-
-async function applyZoomDirect(zoom) {
-  if (!currentStream) return;
-  const track = currentStream.getVideoTracks()[0];
-  try {
-    const caps = track.getCapabilities();
-    if (caps.zoom) { await track.applyConstraints({ advanced: [{ zoom: zoom }] }); return; }
-  } catch(e) {}
-  document.getElementById('video').style.transform = `scale(${zoom})`;
-}
-
-// ── CÂMERAS DISPONÍVEIS ──
-async function loadCameras() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    availableCameras = devices.filter(d => d.kind === 'videoinput');
-    renderLensMenu();
-  } catch(e) {}
-}
-
-function renderLensMenu() {
-  const menu = document.getElementById('lensMenu');
-  menu.innerHTML = '';
-
-  // Labels amigáveis
-  const labels = availableCameras.map((cam, i) => {
-    const label = cam.label || `Câmera ${i+1}`;
-    let name = label;
-    if (/back|rear|environment|principal|wide/i.test(label)) name = '🔭 Traseira';
-    if (/ultra|0\.5|wide.*back/i.test(label)) name = '🌐 Ultra-Wide';
-    if (/tele|2×|3×|zoom.*back/i.test(label)) name = '🔍 Teleobjetiva';
-    if (/front|face|selfie/i.test(label)) name = '🤳 Frontal';
-    return { cam, name };
-  });
-
-  labels.forEach(({ cam, name }) => {
-    const btn = document.createElement('button');
-    btn.className = 'lens-btn' + (cam.deviceId === currentDeviceId ? ' active' : '');
-    btn.textContent = name;
-    btn.onclick = () => switchCamera(cam.deviceId);
-    menu.appendChild(btn);
-  });
-
-  // Se só 1 câmera, esconde o botão de troca
-  document.getElementById('camControls').querySelector('[title="Trocar câmera"]').style.display =
-    availableCameras.length <= 1 ? 'none' : 'flex';
-}
-
-async function switchCamera(deviceId) {
-  zoomLevel = 1;
-  updateZoomLabel();
-  document.getElementById('video').style.transform = '';
-  toggleLensMenu();
-  await startCamera(deviceId);
-}
-
-function toggleLensMenu() {
-  lensMenuOpen = !lensMenuOpen;
-  document.getElementById('lensMenu').classList.toggle('show', lensMenuOpen);
-}
-
-// Fechar menu ao tocar fora
-document.addEventListener('touchstart', e => {
-  if (lensMenuOpen && !e.target.closest('#lensMenu') && !e.target.closest('[title="Trocar câmera"]')) {
-    lensMenuOpen = false;
-    document.getElementById('lensMenu').classList.remove('show');
-  }
-}, { passive: true });
-
-// Auto-hide controles após 4s de inatividade
-let hideTimer;
-function resetHideTimer() {
-  document.getElementById('camControls').classList.remove('hidden');
-  clearTimeout(hideTimer);
-  hideTimer = setTimeout(() => {
-    document.getElementById('camControls').classList.add('hidden');
-  }, 4000);
-}
-document.addEventListener('touchstart', resetHideTimer, { passive: true });
-
-// ── WEBSOCKET ──
-function connectWS(url) {
-  setConn('connecting');
-  try { ws = new WebSocket(url); } catch(e) { retry(url); return; }
-  ws.onopen = () => {
-    setConn('connected');
-    ws.send(JSON.stringify({ type:'register', id:deviceName, name:deviceName }));
+  ws.onopen = function() {
+    // Protocolo OBS WebSocket v5 — identificação
+    ws.send(JSON.stringify({ op: 1, d: { rpcVersion: 1 } }));
   };
-  ws.onmessage = (evt) => {
-    try {
-      const data = JSON.parse(evt.data);
-      if (data.type === 'command' && matchesMe(data.target)) receiveCommand(data.msg);
-      if (data.type === 'tally'   && matchesMe(data.target)) setTally(data.state);
-    } catch(e) {}
+
+  ws.onmessage = function(e) {
+    var msg = JSON.parse(e.data);
+
+    // op 2 = Hello (identificação OK)
+    if (msg.op === 2) {
+      setConn(true, 'OBS CONECTADO');
+      // Subscreve eventos de cena
+      ws.send(JSON.stringify({
+        op: 6,
+        d: {
+          requestType: 'GetSceneList',
+          requestId: 'getScenes'
+        }
+      }));
+      // Pede cenas atuais
+      ws.send(JSON.stringify({ op: 6, d: { requestType: 'GetCurrentProgramScene', requestId: 'getProg' } }));
+      ws.send(JSON.stringify({ op: 6, d: { requestType: 'GetCurrentPreviewScene', requestId: 'getPrev' } }));
+    }
+
+    // op 5 = Evento
+    if (msg.op === 5) {
+      var ev = msg.d;
+
+      // Cena do programa mudou
+      if (ev.eventType === 'CurrentProgramSceneChanged') {
+        var prog = ev.eventData.sceneName;
+        updateTally(prog, null);
+      }
+
+      // Cena da prévia mudou
+      if (ev.eventType === 'CurrentPreviewSceneChanged') {
+        var prev = ev.eventData.sceneName;
+        updateTally(null, prev);
+      }
+
+      // Recebe comando via OBS (enviado pelo Dock do operador via SceneItemSelected ou InputVolumeChanged como hack)
+      // Usamos o evento de filtro de cena como canal de mensagem
+      if (ev.eventType === 'SceneItemSelected') {
+        // não usado aqui
+      }
+      // Recebe comando do operador via BroadcastCustomEvent
+      if (ev.eventType === 'CustomEvent') {
+        var ed = ev.eventData;
+        if (ed && ed.type === 'camcmd') {
+          var target = ed.target || '';
+          var myScene = devName.toUpperCase().replace(/\s/g, '');
+          if (target === 'ALL' || target.toUpperCase().replace(/\s/g, '') === myScene) {
+            recvCmd(ed.msg);
+          }
+        }
+      }
+    }
+
+    // op 7 = Resposta de request
+    if (msg.op === 7) {
+      var d = msg.d;
+      if (d.requestId === 'getProg' && d.responseData) {
+        currentProgram = d.responseData.currentProgramSceneName;
+        updateTally(currentProgram, null);
+      }
+      if (d.requestId === 'getPrev' && d.responseData) {
+        currentPreview = d.responseData.currentPreviewSceneName;
+        updateTally(null, currentPreview);
+      }
+    }
   };
-  ws.onclose = () => { setConn('error'); retry(url); };
-  ws.onerror = () => { setConn('error'); };
+
+  ws.onclose = function() { setConn(false, 'RECONECTANDO...'); retry(); };
+  ws.onerror = function() { setConn(false, 'ERRO'); };
 }
-function retry(url) { setTimeout(() => connectWS(url), 4000); }
-function matchesMe(t) { if(!t) return false; return t.toLowerCase()===deviceName.toLowerCase() || t==='all'; }
+
+var currentProgram = '';
+var currentPreview = '';
+
+function updateTally(prog, prev) {
+  if (prog !== null) currentProgram = prog;
+  if (prev !== null) currentPreview = prev;
+
+  // Verifica se esta câmera é a que está na prévia ou programa
+  // Compara o nome do dispositivo com o nome da cena (CAM1, CAM2, etc)
+  var myScene = devName.toUpperCase().replace(/\s/g,'');
+
+  var newTally = 'none';
+  if (currentProgram.toUpperCase().replace(/\s/g,'') === myScene) newTally = 'program';
+  else if (currentPreview.toUpperCase().replace(/\s/g,'') === myScene) newTally = 'preview';
+
+  setTally(newTally);
+}
 
 // ── TALLY ──
 function setTally(state) {
-  const prev = currentTally;
-  currentTally = state;
-  document.getElementById('tallyBorder').className = state;
-  document.getElementById('tallyPill').className   = state;
-  document.getElementById('tallyLabel').textContent = state==='program'?'AO VIVO':state==='preview'?'PRÉVIA':'OFF';
-  if (state === 'program') hideCommand();
-  if (prev === 'program' && state !== 'program' && pendingCmd) showCommand(pendingCmd);
+  var prev = tally;
+  tally = state;
+  document.getElementById('tb').className = state;
+  document.getElementById('tpill').className = state;
+  document.getElementById('tlbl').textContent = state === 'program' ? 'AO VIVO' : state === 'preview' ? 'PRÉVIA' : 'OFF';
+  if (state === 'program') hideCmd();
+  if (prev === 'program' && state !== 'program' && pendingCmd) showCmd(pendingCmd);
 }
 
 // ── COMANDO ──
-const cmdIcons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','zoom in':'🔍','afasta':'🔭','zoom out':'🔭','plano':'📐','close':'👤','stand by':'⏳','standby':'⏳','atenção':'⚠️','move':'↔️','pan':'↔️','tilt':'↕️','foco':'🎯','focus':'🎯' };
-function guessIcon(msg) { const l=msg.toLowerCase(); for(const[k,v] of Object.entries(cmdIcons)) if(l.includes(k)) return v; return '📢'; }
+var icons = { 'ação':'🎬','corta':'✋','aproxima':'🔍','afasta':'🔭','plano':'📐','close':'👤','stand by':'⏳','atenção':'⚠️','move':'↔️','foco':'🎯' };
+function guessIcon(msg) { var l = msg.toLowerCase(); for (var k in icons) if (l.indexOf(k) > -1) return icons[k]; return '📢'; }
 
-function receiveCommand(msg) {
+function recvCmd(msg) {
   pendingCmd = msg;
-  if (currentTally !== 'program') showCommand(msg);
+  if (tally !== 'program') showCmd(msg);
 }
-function showCommand(msg) {
-  document.getElementById('cmdText').textContent = msg;
-  document.getElementById('cmdIcon').textContent = guessIcon(msg);
-  document.getElementById('cmdOverlay').classList.add('show');
-  flashScreen(); vibrate();
+function showCmd(msg) {
+  document.getElementById('ctxt').textContent = msg;
+  document.getElementById('cico').textContent = guessIcon(msg);
+  document.getElementById('cmdOv').classList.add('show');
+  doFlash(); vibrate();
 }
-function hideCommand() { document.getElementById('cmdOverlay').classList.remove('show'); }
+function hideCmd() { document.getElementById('cmdOv').classList.remove('show'); }
+function doFlash() { var f = document.getElementById('flash'); f.classList.add('fl'); setTimeout(function() { f.classList.remove('fl'); }, 110); }
+function vibrate() { try { navigator.vibrate && navigator.vibrate([35,25,35]); } catch(e) {} }
 
-function flashScreen() {
-  const f = document.getElementById('flashOverlay');
-  f.classList.add('flash');
-  setTimeout(() => f.classList.remove('flash'), 110);
+// ── CONN STATUS ──
+function setConn(on, txt) {
+  document.getElementById('cnd').className = 'cnd' + (on ? ' on' : ' err');
+  document.getElementById('clbl').textContent = txt || (on ? 'CONECTADO' : 'RECONECTANDO...');
 }
-function vibrate() { try { navigator.vibrate?.([35,25,35]); } catch(e) {} }
+function retry() { setTimeout(connectOBS, 4000); }
 
-// ── CONN ──
-function setConn(state) {
-  const dot = document.getElementById('connDot');
-  const lbl = document.getElementById('connLabel');
-  if(state==='connected'){dot.className='conn-dot on';lbl.textContent='CONECTADO';}
-  else if(state==='error'){dot.className='conn-dot err';lbl.textContent='RECONECTANDO…';}
-  else{dot.className='conn-dot';lbl.textContent='CONECTANDO…';}
+// ── ZOOM ──
+function ajZoom(d) {
+  zoomLvl = Math.max(1, Math.min(5, zoomLvl + d));
+  document.getElementById('video').style.transform = 'scale(' + zoomLvl + ')';
+  document.getElementById('zlbl').textContent = zoomLvl.toFixed(1).replace('.0','') + '×';
 }
 
-// ── SAIR ──
-function exitCamera() {
+// Pinça
+var pinchStart = null, pinchZoomStart = 1;
+document.addEventListener('touchstart', function(e) {
+  if (e.touches.length === 2) { pinchStart = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); pinchZoomStart = zoomLvl; }
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  if (e.touches.length === 2 && pinchStart) {
+    var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    zoomLvl = Math.max(1, Math.min(5, pinchZoomStart * (d / pinchStart)));
+    document.getElementById('video').style.transform = 'scale(' + zoomLvl + ')';
+    document.getElementById('zlbl').textContent = zoomLvl.toFixed(1).replace('.0','') + '×';
+  }
+}, { passive: true });
+document.addEventListener('touchend', function() { pinchStart = null; }, { passive: true });
+
+// ── FLIP CAM ──
+async function flipCam() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false });
+    document.getElementById('video').srcObject = stream;
+  } catch(e) {}
+}
+
+// Auto-hide controles
+var hideTimer;
+function resetHide() { document.getElementById('ctrls').classList.remove('hidden'); clearTimeout(hideTimer); hideTimer = setTimeout(function() { document.getElementById('ctrls').classList.add('hidden'); }, 4000); }
+document.addEventListener('touchstart', resetHide, { passive: true });
+
+// Wake Lock
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e) {}
+  document.addEventListener('visibilitychange', async function() { if (document.visibilityState === 'visible') keepAwake(); });
+}
+
+// Sair
+function sair() {
   if (confirm('Sair da câmera?')) {
     if (ws) ws.close();
-    if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-    document.getElementById('camScreen').style.display = 'none';
-    document.getElementById('setupScreen').style.display = 'flex';
-    try { document.exitFullscreen?.(); } catch(e) {}
+    if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
+    document.getElementById('cam').style.display = 'none';
+    document.getElementById('setup').style.display = 'flex';
+    try { document.exitFullscreen && document.exitFullscreen(); } catch(e) {}
   }
-}
-
-// ── WAKE LOCK ──
-async function keepAwake() {
-  try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e) {}
-  document.addEventListener('visibilitychange', async () => { if(document.visibilityState==='visible') keepAwake(); });
-}
-
-// ── DEMO ──
-function startDemo() {
-  setConn('connected');
-  document.getElementById('connLabel').textContent='MODO DEMO';
-  let s=0;
-  const steps=[
-    ()=>setTally('preview'),
-    ()=>receiveCommand('🔍 Aproxima no apresentador'),
-    ()=>receiveCommand('📐 Plano americano'),
-    ()=>setTally('program'),
-    ()=>setTally('preview'),
-    ()=>receiveCommand('✋ CORTA — ótimo!'),
-    ()=>setTally('none'),
-  ];
-  const run=()=>{ if(s<steps.length){steps[s++]();setTimeout(run,3500);} };
-  setTimeout(run,1500);
 }
 </script>
 </body>
